@@ -36,7 +36,7 @@ Not related at all, except that vitawrap and me were obviously inspired by the s
 
 ### Where can I download the COM file?
 
-On the GitHub page, click on the latest release in the right sidebar and download `wordos.com` from there.
+On the GitHub page, click on the [latest release](https://github.com/kajott/wordos/releases/latest) in the right sidebar and download `wordos.com` from there.
 
 ### Why?
 
