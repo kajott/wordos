@@ -34,6 +34,10 @@ Enter five letters, confirm your entry by pressing Enter, rinse and repeat. Afte
 
 Not related at all, except that vitawrap and me were obviously inspired by the same ideas and chose the same name (and display mode) for our ports. I learned about their WOR-DOS only after my WorDOS was done.
 
+### Where can I download the COM file?
+
+On the GitHub page, click on the latest release in the right sidebar and download `wordos.com` from there.
+
 ### Why?
 
 Because I can! Seeing all the Wordle ports sprouting left and right, I thought I'd give it a try too.
