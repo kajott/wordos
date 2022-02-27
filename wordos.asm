@@ -7,6 +7,8 @@
 ; assemble with: yasm -fbin -owordos.com wordos.asm
 ; Other assemblers might work, but haven't been tested.
 
+%define VERSION "1.1"
+
 BITS 16
 CPU 8086
 ORG 0100h
@@ -60,7 +62,7 @@ BM_CORRECT  equ 4                ; "letter has been correctly guessed" flag
 ; end message
     db 13,10
 endmsg:
-    db "WorDOS - a DOS clone of the popular word guessing game 'Wordle'", 13,10
+    db "WorDOS ", VERSION, " - a DOS clone of the popular word guessing game 'Wordle'", 13,10
     db "WorDOS (C) 2022 Martin J. Fiedler <keyj@emphy.de>", 13,10
     db "Wordle (C) 2021-2022 Josh Wardle", 13,10
     db 13, 10
