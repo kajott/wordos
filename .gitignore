@@ -3,4 +3,5 @@ wordos.lst
 wordlist.inc
 yasm.exe
 dosbox.exe
+dosbox.conf
 SDL*.dll

@@ -68,8 +68,19 @@ endmsg:
 ; word list (and end of end message before it)
 %include "wordlist.inc"
 
-; more variables
-darkgray:   db 8Fh               ; attribute for white on dark gray or black
+; attribute and other video constants
+attr_start: ;  color, mono   ; 'mono' will be copied over to 'color' if needed
+xoffset:    db 0,     20     ; horizontal screen offset
+A_input:    db 1Fh,   07h    ; input fields
+A_confirm:  db 08h,   07h    ; confirmation prompt; also used for grid
+A_wrong_w:  db 8Fh,   07h    ; wrong letter in word
+A_wrong_l:  db 8Fh,   00h    ; wrong letter in letter list
+A_present:  db 6Fh,   01h    ; present letter in word and letter list
+A_correct:  db 2Fh,   70h    ; fully correct letter in word and letter list
+A_unknown:  db 7Fh,   07h    ; unknown (not yet guessed) letter in letter list
+oldmode:    db 03h,   07h    ; old video mode
+attr_count  equ ($ - attr_start) / 2
+
 
 ; #################################### CODE ###################################
 
@@ -77,10 +88,17 @@ main:
     ; reset global variables
     mov byte [currline], 4
 
-    ; - - - - - - - - - - - - - - - - - - - - - - - - - - - draw initial screen
+    ; - - - - - - - - - - - - - - - - - - - - video setup / draw initial screen
 
+    ; check current video mode
+    mov ah, 0Fh
+    int 10h
+    cmp al, 07h  ; MDA/Hercules text mode?
+    je mono_hw
+
+color_hw:
     ; set 40x25 text mode
-    mov ax, 1
+    mov ax, 01h
     int 10h
 
     ; check for EGA using "get EGA info" call
@@ -100,14 +118,39 @@ main:
     jmp .egaend
 .noega:
     ; no EGA -> can't disable blinking or modify palette
-    mov byte [darkgray], 0Fh
+    ; use black instead of dark gray background
+    mov byte [A_wrong_w], 0Fh
+    mov byte [A_wrong_l], 0Fh
 .egaend:
 
-    ; set full-height cursor
+    ; set full-height cursor (constant value, as EGA/VGA do size translation)
     mov ah, 1
     mov cx, 0007h
     int 10h
 
+    jmp drawtitle
+
+mono_hw:
+    ; reset video mode
+    mov ax, 7
+    int 10h
+
+    ; copy attribute constants
+    mov cx, attr_count
+    mov bx, attr_start
+.copy_attr:
+    mov al, [bx+1]
+    mov [bx], al
+    inc bx
+    inc bx
+    loop .copy_attr
+
+    ; set full-height cursor (MDA/Hercules doen't do size translation)
+    mov ah, 1
+    mov cx, 000Dh
+    int 10h
+
+drawtitle:
     ; title text
     mov ah, 0Fh
     mov dx, 010Eh
@@ -117,7 +160,8 @@ main:
     ; guessing grid
     mov dx, 040Fh
 .ggridloop:
-    mov ax, 08B0h
+    mov ah, [A_confirm]
+    mov al, 176
     call DrawCharAt
     inc dx
     inc dx
@@ -254,7 +298,8 @@ guessinput:
     mov dl, 15
     mov cx, 5
 .drawempty:
-    mov ax, 1F20h
+    mov ah, [A_input]
+    mov al, 20h
     call DrawCharAt
     inc dx
     inc dx
@@ -270,7 +315,7 @@ editloop:
     ; do we need to draw the confirmation prompt?
     cmp bl, 5
     jl .noprompt
-    mov ah, 08h
+    mov ah, [A_confirm]
     mov dl, 25
     mov si, s_confirm
     call DrawStringAt
@@ -293,7 +338,8 @@ editloop:
     cmp bl, 5
     jl .noclear
     push ax
-    mov ax, 0820h
+    mov ah, [A_confirm]
+    mov al, 20h
     mov dl, 25
     mov cx, S_CONFIRM_LENGTH
     call FillCharAt
@@ -326,7 +372,7 @@ editloop:
     cmp bl, 5
     jge .noletter
     ; new letter entered
-    mov ah, 1Fh
+    mov ah, [A_input]
     call DrawCharAt
     mov [guessbuf+bx], al
     inc bx
@@ -442,15 +488,15 @@ guesseval:
     ; determine attribute
     cmp al, cl          ; correct letter at correct position = green
     jne .la1_notcorrect
-    mov ah, 2Fh
+    mov ah, [A_correct]
     jmp .drawletter1
 .la1_notcorrect:
     test ch, BM_INWORD  ; letter somewhere in word = yellow
     jz .la1_notinword
-    mov ah, 6Fh
+    mov ah, [A_present]
     jmp .drawletter1
 .la1_notinword:
-    mov ah, [darkgray]
+    mov ah, [A_wrong_w]
 
     ; draw the letter
 .drawletter1:
@@ -521,7 +567,8 @@ waitquit:
 
 quit:
     ; restore video mode, show end message and quit program
-    mov ax, 3
+    xor ah, ah
+    mov al, [oldmode]
     int 10h
     mov ah, 9
     mov dx, endmsg
@@ -535,6 +582,7 @@ quit:
 ; in DH = line (0=top)
 ; in DL = column (0=left)
 DrawCharAt:
+    push dx
     push cx
     push bx
     push ax
@@ -542,6 +590,7 @@ DrawCharAt:
     ; set cursor position
     mov ah, 2
     xor bh, bh
+    add dl, [xoffset]
     int 10h
     ; draw character
     pop ax
@@ -554,6 +603,7 @@ DrawCharAt:
     pop ax
     pop bx
     pop cx
+    pop dx
     ret
 
 ; -----------------------------------------------------------------------------
@@ -564,6 +614,7 @@ DrawCharAt:
 ; in DL = column (0=left)
 ; in CX = count
 FillCharAt:
+    push dx
     push cx
     push bx
     push ax
@@ -571,6 +622,7 @@ FillCharAt:
     ; set cursor position
     mov ah, 2
     xor bh, bh
+    add dl, [xoffset]
     int 10h
     ; draw character
     pop ax
@@ -581,6 +633,7 @@ FillCharAt:
     pop ax
     pop bx
     pop cx
+    pop dx
     ret
 
 ; -----------------------------------------------------------------------------
@@ -661,22 +714,22 @@ DrawLetterGrid:
     xchg al, ah
 
     ; determine attribute
-    test ah, BM_CORRECT               ; "correct" bit set? -> green
+    test ah, BM_CORRECT               ; "correct" bit set?
     jz .lnotcorrect
-    mov ah, 2Fh
+    mov ah, [A_correct]
     jmp .lgdraw
 .lnotcorrect
-    cmp ah, '0'+BM_INWORD+BM_GUESSED  ; letter present *and* guessed? -> yellow
+    cmp ah, '0'+BM_INWORD+BM_GUESSED  ; letter present *and* guessed?
     jl .lnotused
-    mov ah, 6Fh
+    mov ah, [A_present]
     jmp .lgdraw
 .lnotused
-    test ah, BM_GUESSED               ; letter already guessed? -> dark gray
+    test ah, BM_GUESSED               ; letter already guessed?
     jz .lnotguessed
-    mov ah, [darkgray]
+    mov ah, [A_wrong_l]
     jmp .lgdraw
 .lnotguessed
-    mov ah, 7Fh                       ; letter completely untouched -> gray
+    mov ah, [A_unknown]               ; letter completely untouched
     
     ; draw the letter and advance to the next one
 .lgdraw:
